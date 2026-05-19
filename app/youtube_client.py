@@ -15,58 +15,6 @@ from app.models import ChannelData, VideoItem
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 MAX_VIDEOS_PER_CHANNEL = 25
 
-# Official @handles for major brands (resolved via channels.list forHandle)
-OFFICIAL_HANDLES: dict[str, str] = {
-    "apple": "Apple",
-    "samsung": "Samsung",
-    "redmi": "RedmiGlobal",
-    "xiaomi": "Xiaomi",
-    "oppo": "OPPO",
-    "vivo": "vivo",
-    "oneplus": "OnePlus",
-    "google": "Google",
-    "microsoft": "Microsoft",
-    "amazon": "Amazon",
-    "nike": "nike",
-    "adidas": "adidas",
-    "huawei": "Huawei",
-    "realme": "realme",
-    "motorola": "Motorola",
-    "sony": "Sony",
-    "lg": "LGGlobal",
-    "nokia": "Nokia",
-    "tesla": "Tesla",
-    "netflix": "Netflix",
-    "spotify": "Spotify",
-    "hubspot": "HubSpot",
-    "salesforce": "Salesforce",
-    "coca-cola": "CocaCola",
-    "pepsi": "pepsi",
-    "mcdonalds": "McDonalds",
-    "starbucks": "Starbucks",
-    "bmw": "BMW",
-    "mercedes": "MercedesBenz",
-    "audi": "Audi",
-    "toyota": "Toyota",
-    "honda": "Honda",
-    "ford": "Ford",
-    "puma": "PUMA",
-    "under armour": "UnderArmour",
-    "reebok": "Reebok",
-    "intel": "Intel",
-    "amd": "AMD",
-    "dell": "Dell",
-    "lenovo": "Lenovo",
-    "hp": "HP",
-    "asus": "ASUS",
-    "acer": "Acer",
-    "nothing": "nothingtechnology",
-    "iqoo": "iQOOGlobal",
-    "honor": "HONOR",
-    "tecno": "TecnoMobileOfficial",
-    "infinix": "InfinixMobile",
-}
-
 # Words that usually mean a fan/news channel, not the brand's main channel
 DISTRACTOR_WORDS = {
     "music", "tv", "news", "insider", "fans", "fan", "daily", "live",
@@ -116,12 +64,49 @@ class YouTubeClient:
         items = data.get("items", [])
         return items[0] if items else None
 
+    def _generate_handle_candidates(self, company_name: str) -> list[str]:
+        """Build @handle guesses from any company name (no fixed brand list)."""
+        name = company_name.strip()
+        if not name:
+            return []
+
+        parts = re.split(r"[\s\-]+", name)
+        compact = re.sub(r"[^a-zA-Z0-9]", "", name)
+        titled = "".join(p.capitalize() for p in parts if p)
+        upper = compact.upper() if len(compact) <= 4 else None  # BMW, HP, AMD
+
+        raw = [
+            compact,
+            compact.lower(),
+            titled,
+            titled.lower(),
+            name.replace(" ", ""),
+            name.replace(" ", "").lower(),
+            f"{titled}Global",
+            f"{titled}Official",
+            f"{compact}Global",
+            f"{compact}Official",
+        ]
+        if upper:
+            raw.append(upper)
+        if len(parts) > 1:
+            raw.append(parts[0].capitalize())
+
+        seen: set[str] = set()
+        result: list[str] = []
+        for h in raw:
+            h = h.lstrip("@").strip()
+            if h and h.lower() not in seen:
+                seen.add(h.lower())
+                result.append(h)
+        return result[:10]
+
     async def _search_channel_ids(self, company_name: str) -> list[str]:
         """Run multiple searches and collect unique channel IDs."""
         queries = [
+            f"{company_name} official channel",
             f"{company_name} official",
             company_name,
-            f"@{company_name.replace(' ', '')}",
         ]
         seen: set[str] = set()
         ids: list[str] = []
@@ -134,7 +119,7 @@ class YouTubeClient:
                         "part": "snippet",
                         "q": q,
                         "type": "channel",
-                        "maxResults": 8,
+                        "maxResults": 10,
                         "order": "relevance",
                     },
                 )
@@ -241,42 +226,33 @@ class YouTubeClient:
         return score
 
     async def resolve_best_channel(self, company_name: str) -> Optional[dict]:
-        """Find the official brand channel using handle lookup + scored search."""
-        key = self._normalize_key(company_name)
+        """Find the best-matching official channel for any company name."""
+        collected: dict[str, dict] = {}
 
-        # 1) Known official @handle
-        handle = OFFICIAL_HANDLES.get(key) or OFFICIAL_HANDLES.get(company_name.lower().strip())
-        if handle:
-            ch = await self.get_channel_by_handle(handle)
-            if ch:
-                return ch
+        # 1) Try @handle guesses derived from the name (works for any brand)
+        for handle in self._generate_handle_candidates(company_name):
+            try:
+                ch = await self.get_channel_by_handle(handle)
+                if ch and ch.get("id"):
+                    collected[ch["id"]] = ch
+            except Exception:
+                continue
 
-        # 2) Try @handle derived from company name
-        for candidate_handle in [
-            company_name.replace(" ", ""),
-            company_name.replace(" ", "").lower(),
-            company_name.title().replace(" ", ""),
-        ]:
-            ch = await self.get_channel_by_handle(candidate_handle)
-            if ch:
-                scored = self._score_channel(company_name, ch)
-                if scored >= 80:
-                    return ch
+        # 2) YouTube search — gather more candidates
+        search_ids = await self._search_channel_ids(company_name)
+        missing_ids = [cid for cid in search_ids if cid not in collected]
+        if missing_ids:
+            for ch in await self.get_channels_batch(missing_ids):
+                if ch.get("id"):
+                    collected[ch["id"]] = ch
 
-        # 3) Search multiple queries, score all candidates with full stats
-        channel_ids = await self._search_channel_ids(company_name)
-        if not channel_ids:
+        if not collected:
             return None
 
-        channels = await self.get_channels_batch(channel_ids)
-        if not channels:
-            return None
-
+        # 3) Pick highest-scoring channel across all candidates
+        channels = list(collected.values())
         best = max(channels, key=lambda c: self._score_channel(company_name, c))
-        best_score = self._score_channel(company_name, best)
-
-        # Reject very poor matches
-        if best_score < 25:
+        if self._score_channel(company_name, best) < 25:
             return None
 
         return best
