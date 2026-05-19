@@ -199,7 +199,7 @@ function renderChannelTable(insights, channels, primary) {
     const hl = ins.company_name === primary ? "highlight-row" : "";
     return `<tr class="${hl}">
       <td><strong>${escapeHtml(ins.company_name)}</strong></td>
-      <td>${ch?.channel_url ? `<a href="${ch.channel_url}" target="_blank" rel="noopener">${escapeHtml(ins.channel_title)}</a>` : escapeHtml(ins.channel_title)}</td>
+      <td>${ch?.channel_url ? `<a href="${ch.channel_url}" target="_blank" rel="noopener" title="Verify this is the correct channel">${escapeHtml(ins.channel_title)}</a><br><small style="color:var(--muted);font-weight:500">Click to verify on YouTube</small>` : escapeHtml(ins.channel_title)}</td>
       <td>${formatNum(ins.subscribers)}</td>
       <td>${formatNum(ins.total_videos)}</td>
       <td>${formatNum(ins.total_views)}</td>
