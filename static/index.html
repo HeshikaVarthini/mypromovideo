@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Competitor Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Instrument+Serif&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="logo">
+      <span class="logo-icon">▶</span>
+      <span class="logo-text">VidIntel</span>
+    </div>
+    <p class="tagline">Competitive video marketing intelligence powered by real YouTube data</p>
+  </header>
+
+  <main class="container">
+    <!-- Input Section -->
+    <section id="input-section" class="card input-card">
+      <h1>Generate Your Competitor Report</h1>
+      <p class="lead">Enter your company and up to 4 competitors. We'll analyse their YouTube channels and build a strategic report you can read online or download as PowerPoint.</p>
+
+      <form id="report-form">
+        <div class="form-group">
+          <label for="company">Your Company Name</label>
+          <input type="text" id="company" name="company" placeholder="e.g. HubSpot" required />
+        </div>
+
+        <fieldset class="competitors-fieldset">
+          <legend>Competitors <span class="hint">(up to 4)</span></legend>
+          <div class="competitor-inputs">
+            <input type="text" class="competitor" placeholder="Competitor 1" />
+            <input type="text" class="competitor" placeholder="Competitor 2" />
+            <input type="text" class="competitor" placeholder="Competitor 3" />
+            <input type="text" class="competitor" placeholder="Competitor 4" />
+          </div>
+        </fieldset>
+
+        <button type="submit" id="submit-btn" class="btn-primary">
+          <span class="btn-text">Analyse &amp; Generate Report</span>
+          <span class="btn-loading hidden">Analysing channels…</span>
+        </button>
+      </form>
+
+      <p id="api-status" class="api-status"></p>
+    </section>
+
+    <!-- Loading -->
+    <section id="loading-section" class="card hidden">
+      <div class="loader">
+        <div class="spinner"></div>
+        <h2>Fetching &amp; analysing video data</div>
+        <p>This may take 30–60 seconds while we pull channel stats, recent videos, and engagement metrics from YouTube.</p>
+        <ul class="loading-steps">
+          <li id="step-search">Searching YouTube channels…</li>
+          <li id="step-videos">Collecting video performance data…</li>
+          <li id="step-analyse">Running competitive analysis…</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Report -->
+    <section id="report-section" class="hidden">
+      <div class="report-actions card">
+        <div>
+          <h2 id="report-title">Competitive Video Intelligence Report</h2>
+          <p id="report-date" class="report-meta"></p>
+        </div>
+        <div class="action-buttons">
+          <button id="download-btn" class="btn-secondary">Download PowerPoint (.pptx)</button>
+          <button id="new-report-btn" class="btn-outline">New Report</button>
+        </div>
+      </div>
+
+      <article class="card report-block">
+        <h3>Executive Summary</h3>
+        <p id="executive-summary" class="insight-text"></p>
+        <div class="leader-badge" id="leader-badge"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Channel Overview</h3>
+        <div class="table-wrap">
+          <table id="channel-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Channel</th>
+                <th>Subscribers</th>
+                <th>Total Videos</th>
+                <th>Total Views</th>
+                <th>Uploads/Month</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Competitive Rankings</h3>
+        <div id="rankings-grid" class="rankings-grid"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Content Performance — Top Videos</h3>
+        <div id="top-videos" class="company-sections"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Content Topics &amp; Themes</h3>
+        <div id="topics-grid" class="topics-grid"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Engagement Analysis</h3>
+        <div class="table-wrap">
+          <table id="engagement-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Avg Views</th>
+                <th>Avg Likes</th>
+                <th>Avg Comments</th>
+                <th>Engagement Rate</th>
+                <th>Consistency</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card report-block">
+        <h3>Gap Analysis</h3>
+        <div id="gap-list" class="gap-list"></div>
+      </article>
+
+      <article class="card report-block recommendations">
+        <h3>Strategic Recommendations</h3>
+        <ol id="recommendations-list"></ol>
+      </article>
+
+      <div class="report-footer card">
+        <button id="download-btn-bottom" class="btn-primary">Download Full PowerPoint Report</button>
+      </div>
+    </section>
+
+    <div id="error-toast" class="toast hidden" role="alert"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p>Data sourced from YouTube Data API · Reports for strategic planning purposes</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: vidintel
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: PORT
+        value: 8000

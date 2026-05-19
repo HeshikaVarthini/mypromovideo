@@ -1,0 +1,1 @@
+"""Video Competitor Intelligence application."""
