@@ -42,7 +42,7 @@ def _cache_key(company: str, competitors: list[str]) -> str:
     return "|".join(parts)
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def index():
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
@@ -50,7 +50,7 @@ async def index():
     return HTMLResponse("<h1>Video Competitor Intelligence</h1><p>Static files not found.</p>")
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health():
     has_key = bool(os.environ.get("YOUTUBE_API_KEY"))
     return {
