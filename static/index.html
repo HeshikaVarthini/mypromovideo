@@ -3,35 +3,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Video Competitor Intelligence</title>
+  <title>VidIntel — Video Competitor Intelligence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Instrument+Serif&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
+  <div class="bg-mesh" aria-hidden="true"></div>
+
   <header class="site-header">
     <div class="logo">
-      <span class="logo-icon">▶</span>
+      <span class="logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </span>
       <span class="logo-text">VidIntel</span>
     </div>
-    <p class="tagline">Competitive video marketing intelligence powered by real YouTube data</p>
+    <p class="tagline">Video competitor intelligence · Real YouTube data · Strategic reports</p>
   </header>
 
   <main class="container">
-    <!-- Input Section -->
     <section id="input-section" class="card input-card">
+      <div class="card-badge">YouTube Data API</div>
       <h1>Generate Your Competitor Report</h1>
-      <p class="lead">Enter your company and up to 4 competitors. We'll analyse their YouTube channels and build a strategic report you can read online or download as PowerPoint.</p>
+      <p class="lead">Compare your brand against up to 4 competitors. We analyse channels, engagement, topics, and gaps — then deliver a report you can present to clients.</p>
 
       <form id="report-form">
         <div class="form-group">
-          <label for="company">Your Company Name</label>
-          <input type="text" id="company" name="company" placeholder="e.g. HubSpot" required />
+          <label for="company">Your Company</label>
+          <input type="text" id="company" name="company" placeholder="e.g. Nike, HubSpot, Apple" required />
         </div>
 
         <fieldset class="competitors-fieldset">
-          <legend>Competitors <span class="hint">(up to 4)</span></legend>
+          <legend>Competitors <span class="hint">(1–4 required)</span></legend>
           <div class="competitor-inputs">
             <input type="text" class="competitor" placeholder="Competitor 1" />
             <input type="text" class="competitor" placeholder="Competitor 2" />
@@ -41,7 +45,10 @@
         </fieldset>
 
         <button type="submit" id="submit-btn" class="btn-primary">
-          <span class="btn-text">Analyse &amp; Generate Report</span>
+          <span class="btn-text">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            Analyse &amp; Generate Report
+          </span>
           <span class="btn-loading hidden">Analysing channels…</span>
         </button>
       </form>
@@ -49,51 +56,65 @@
       <p id="api-status" class="api-status"></p>
     </section>
 
-    <!-- Loading -->
-    <section id="loading-section" class="card hidden">
+    <section id="loading-section" class="card loading-card hidden">
       <div class="loader">
-        <div class="spinner"></div>
-        <h2>Fetching &amp; analysing video data</div>
-        <p>This may take 30–60 seconds while we pull channel stats, recent videos, and engagement metrics from YouTube.</p>
+        <div class="loader-ring"></div>
+        <h2>Building your intelligence report</h2>
+        <p>Pulling channel stats, video performance, and engagement from YouTube…</p>
         <ul class="loading-steps">
-          <li id="step-search">Searching YouTube channels…</li>
-          <li id="step-videos">Collecting video performance data…</li>
-          <li id="step-analyse">Running competitive analysis…</li>
+          <li id="step-search">Searching YouTube channels</li>
+          <li id="step-videos">Collecting video performance data</li>
+          <li id="step-analyse">Running competitive analysis</li>
         </ul>
       </div>
     </section>
 
-    <!-- Report -->
     <section id="report-section" class="hidden">
-      <div class="report-actions card">
-        <div>
-          <h2 id="report-title">Competitive Video Intelligence Report</h2>
+      <div class="report-hero card">
+        <div class="report-hero-content">
+          <span class="report-label">Competitive Intelligence Report</span>
+          <h2 id="report-title">Report</h2>
           <p id="report-date" class="report-meta"></p>
         </div>
         <div class="action-buttons">
-          <button id="download-btn" class="btn-secondary">Download PowerPoint (.pptx)</button>
+          <button id="download-btn" class="btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Download PowerPoint
+          </button>
           <button id="new-report-btn" class="btn-outline">New Report</button>
         </div>
       </div>
 
+      <div id="kpi-grid" class="kpi-grid"></div>
+
       <article class="card report-block">
-        <h3>Executive Summary</h3>
+        <h3><span class="section-icon">📊</span> Executive Summary</h3>
         <p id="executive-summary" class="insight-text"></p>
         <div class="leader-badge" id="leader-badge"></div>
       </article>
 
       <article class="card report-block">
-        <h3>Channel Overview</h3>
+        <h3><span class="section-icon">📈</span> Audience Reach</h3>
+        <div id="subscriber-chart" class="bar-chart"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3><span class="section-icon">🏆</span> Competitive Rankings</h3>
+        <div id="rankings-grid" class="rankings-grid"></div>
+      </article>
+
+      <article class="card report-block">
+        <h3><span class="section-icon">📺</span> Channel Overview</h3>
         <div class="table-wrap">
-          <table id="channel-table">
+          <table id="channel-table" class="data-table">
             <thead>
               <tr>
                 <th>Company</th>
                 <th>Channel</th>
                 <th>Subscribers</th>
-                <th>Total Videos</th>
+                <th>Videos</th>
                 <th>Total Views</th>
-                <th>Uploads/Month</th>
+                <th>Uploads/Mo</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -102,31 +123,27 @@
       </article>
 
       <article class="card report-block">
-        <h3>Competitive Rankings</h3>
-        <div id="rankings-grid" class="rankings-grid"></div>
+        <h3><span class="section-icon">🔥</span> Top Performing Videos</h3>
+        <div id="top-videos" class="video-grid"></div>
       </article>
 
       <article class="card report-block">
-        <h3>Content Performance — Top Videos</h3>
-        <div id="top-videos" class="company-sections"></div>
-      </article>
-
-      <article class="card report-block">
-        <h3>Content Topics &amp; Themes</h3>
+        <h3><span class="section-icon">🏷️</span> Content Topics &amp; Themes</h3>
         <div id="topics-grid" class="topics-grid"></div>
       </article>
 
       <article class="card report-block">
-        <h3>Engagement Analysis</h3>
-        <div class="table-wrap">
-          <table id="engagement-table">
+        <h3><span class="section-icon">💬</span> Engagement Analysis</h3>
+        <div id="engagement-chart" class="bar-chart horizontal"></div>
+        <div class="table-wrap" style="margin-top:1.5rem">
+          <table id="engagement-table" class="data-table">
             <thead>
               <tr>
                 <th>Company</th>
                 <th>Avg Views</th>
                 <th>Avg Likes</th>
-                <th>Avg Comments</th>
-                <th>Engagement Rate</th>
+                <th>Comments</th>
+                <th>Eng. Rate</th>
                 <th>Consistency</th>
               </tr>
             </thead>
@@ -136,13 +153,13 @@
       </article>
 
       <article class="card report-block">
-        <h3>Gap Analysis</h3>
+        <h3><span class="section-icon">🎯</span> Gap Analysis</h3>
         <div id="gap-list" class="gap-list"></div>
       </article>
 
-      <article class="card report-block recommendations">
-        <h3>Strategic Recommendations</h3>
-        <ol id="recommendations-list"></ol>
+      <article class="card report-block recommendations-block">
+        <h3><span class="section-icon">✅</span> Strategic Recommendations</h3>
+        <ol id="recommendations-list" class="rec-list"></ol>
       </article>
 
       <div class="report-footer card">
@@ -154,7 +171,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>Data sourced from YouTube Data API · Reports for strategic planning purposes</p>
+    <p>Powered by YouTube Data API · VidIntel © 2026</p>
   </footer>
 
   <script src="/static/app.js"></script>

@@ -1,11 +1,13 @@
 /**
- * Video Competitor Intelligence — frontend
+ * VidIntel — frontend
  */
 
 let currentReport = null;
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
+
+const MEDALS = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 
 document.addEventListener("DOMContentLoaded", () => {
   checkApiHealth();
@@ -36,18 +38,10 @@ async function checkApiHealth() {
 async function onSubmit(e) {
   e.preventDefault();
   const company = $("#company").value.trim();
-  const competitors = [...$$(".competitor")]
-    .map((inp) => inp.value.trim())
-    .filter(Boolean);
+  const competitors = [...$$(".competitor")].map((i) => i.value.trim()).filter(Boolean);
 
-  if (!company) {
-    showToast("Please enter your company name.");
-    return;
-  }
-  if (competitors.length === 0) {
-    showToast("Please enter at least one competitor.");
-    return;
-  }
+  if (!company) return showToast("Please enter your company name.");
+  if (!competitors.length) return showToast("Please enter at least one competitor.");
 
   showSection("loading");
   animateLoadingSteps();
@@ -63,17 +57,15 @@ async function onSubmit(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ company, competitors }),
     });
-
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || "Analysis failed");
-    }
+    if (!res.ok) throw new Error(data.detail || "Analysis failed");
 
     currentReport = data;
     renderReport(data);
     showSection("report");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
-    showToast(err.message || "Something went wrong. Please try again.");
+    showToast(err.message || "Something went wrong.");
     showSection("input");
   } finally {
     btn.disabled = false;
@@ -90,13 +82,8 @@ function animateLoadingSteps() {
     setTimeout(() => {
       if (i > 0) document.getElementById(steps[i - 1]).className = "done";
       el.className = "active";
-    }, i * 4000);
+    }, i * 3500);
   });
-  setTimeout(() => {
-    steps.forEach((id) => {
-      document.getElementById(id).className = "done";
-    });
-  }, 12000);
 }
 
 function showSection(name) {
@@ -107,161 +94,190 @@ function showSection(name) {
 
 function renderReport(report) {
   const names = [report.company, ...report.competitors];
-  $("#report-title").textContent = `Report: ${names.join(" vs ")}`;
-  const date = new Date(report.generated_at).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  $("#report-date").textContent = `Generated ${date} · Based on live YouTube data`;
+  $("#report-title").textContent = names.join(" vs ");
+  $("#report-date").textContent = `${new Date(report.generated_at).toLocaleDateString("en-US", {
+    year: "numeric", month: "long", day: "numeric",
+  })} · Live YouTube data`;
 
   $("#executive-summary").textContent = report.executive_summary;
   $("#leader-badge").innerHTML = `
-    <strong>🏆 Market Leader: ${escapeHtml(report.leader)}</strong>
-    ${escapeHtml(report.leader_reason)}
+    <strong>Market Leader: ${escapeHtml(report.leader)}</strong>
+    <span>${escapeHtml(report.leader_reason)}</span>
   `;
 
-  renderChannelTable(report.insights, report.channels);
+  renderKpis(report);
+  renderBarChart("#subscriber-chart", report.comparative_metrics.companies, report.comparative_metrics.subscribers, formatNum);
+  renderBarChart("#engagement-chart", report.comparative_metrics.companies, report.comparative_metrics.avg_engagement, (v) => v.toFixed(2) + "%");
   renderRankings(report.rankings);
+  renderChannelTable(report.insights, report.channels, report.company);
   renderTopVideos(report.insights);
   renderTopics(report.insights);
-  renderEngagementTable(report.insights);
+  renderEngagementTable(report.insights, report.company);
   renderGaps(report.gap_analysis);
   renderRecommendations(report.recommendations);
 }
 
-function renderChannelTable(insights, channels) {
-  const tbody = $("#channel-table tbody");
-  tbody.innerHTML = "";
-  insights.forEach((ins) => {
-    const ch = channels.find((c) => c.company_name === ins.company_name);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${escapeHtml(ins.company_name)}</strong></td>
-      <td>${ch && ch.channel_url ? `<a href="${ch.channel_url}" target="_blank" rel="noopener">${escapeHtml(ins.channel_title)}</a>` : escapeHtml(ins.channel_title)}</td>
-      <td>${formatNum(ins.subscribers)}</td>
-      <td>${formatNum(ins.total_videos)}</td>
-      <td>${formatNum(ins.total_views)}</td>
-      <td>${ins.uploads_per_month.toFixed(1)}</td>
-    `;
-    tbody.appendChild(tr);
+function renderKpis(report) {
+  const grid = $("#kpi-grid");
+  const leader = report.rankings[0];
+  const userRank = report.rankings.find((r) => r.company_name === report.company);
+
+  grid.innerHTML = `
+    <div class="kpi-card highlight">
+      <div class="kpi-label">Market Leader</div>
+      <div class="kpi-value">${escapeHtml(report.leader)}</div>
+      <div class="kpi-sub">Score ${leader ? leader.overall_score.toFixed(0) : "—"}/100</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">${escapeHtml(report.company)} Rank</div>
+      <div class="kpi-value">#${userRank ? userRank.rank : "—"}</div>
+      <div class="kpi-sub">of ${report.insights.length} brands</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Brands Analysed</div>
+      <div class="kpi-value">${report.insights.length}</div>
+      <div class="kpi-sub">YouTube channels</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Content Gaps</div>
+      <div class="kpi-value">${(report.gap_analysis || []).length}</div>
+      <div class="kpi-sub">Opportunities found</div>
+    </div>
+  `;
+}
+
+function renderBarChart(selector, labels, values, formatter) {
+  const el = $(selector);
+  if (!el || !labels?.length) return;
+  const max = Math.max(...values, 1);
+  el.innerHTML = labels.map((label, i) => `
+    <div class="bar-row">
+      <span class="bar-label">${escapeHtml(label)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:0" data-w="${(values[i] / max) * 100}"></div></div>
+      <span class="bar-value">${formatter(values[i])}</span>
+    </div>
+  `).join("");
+
+  requestAnimationFrame(() => {
+    el.querySelectorAll(".bar-fill").forEach((bar) => {
+      bar.style.width = bar.dataset.w + "%";
+    });
   });
 }
 
 function renderRankings(rankings) {
   const grid = $("#rankings-grid");
-  grid.innerHTML = "";
-  rankings.forEach((r) => {
-    const card = document.createElement("div");
-    card.className = `rank-card rank-${r.rank}`;
-    card.innerHTML = `
-      <div class="rank-number">#${r.rank}</div>
+  grid.innerHTML = rankings.map((r, i) => `
+    <div class="rank-card rank-${r.rank}">
+      <div class="rank-medal">${MEDALS[i] || "#" + r.rank}</div>
+      <div class="rank-number">Rank ${r.rank}</div>
       <div class="rank-company">${escapeHtml(r.company_name)}</div>
       <div class="rank-score">${r.overall_score.toFixed(0)}</div>
-      <div class="rank-label">Overall Score / 100</div>
-      <div class="rank-breakdown">
-        Audience: ${r.subscriber_score.toFixed(0)} ·
-        Engagement: ${r.engagement_score.toFixed(0)} ·
-        Consistency: ${r.consistency_score.toFixed(0)} ·
-        Volume: ${r.content_volume_score.toFixed(0)}
-      </div>
-    `;
-    grid.appendChild(card);
-  });
+      <div class="rank-label">Overall Score</div>
+      ${scoreBars(r)}
+    </div>
+  `).join("");
+}
+
+function scoreBars(r) {
+  const items = [
+    ["Audience", r.subscriber_score],
+    ["Engagement", r.engagement_score],
+    ["Consistency", r.consistency_score],
+    ["Volume", r.content_volume_score],
+  ];
+  return `<div class="score-bar-wrap">${items.map(([label, val]) => `
+    <div class="score-bar-label"><span>${label}</span><span>${val.toFixed(0)}</span></div>
+    <div class="score-bar"><div class="score-bar-fill" style="width:${val}%"></div></div>
+  `).join("")}</div>`;
+}
+
+function renderChannelTable(insights, channels, primary) {
+  const tbody = $("#channel-table tbody");
+  tbody.innerHTML = insights.map((ins) => {
+    const ch = channels.find((c) => c.company_name === ins.company_name);
+    const hl = ins.company_name === primary ? "highlight-row" : "";
+    return `<tr class="${hl}">
+      <td><strong>${escapeHtml(ins.company_name)}</strong></td>
+      <td>${ch?.channel_url ? `<a href="${ch.channel_url}" target="_blank" rel="noopener">${escapeHtml(ins.channel_title)}</a>` : escapeHtml(ins.channel_title)}</td>
+      <td>${formatNum(ins.subscribers)}</td>
+      <td>${formatNum(ins.total_videos)}</td>
+      <td>${formatNum(ins.total_views)}</td>
+      <td>${ins.uploads_per_month.toFixed(1)}</td>
+    </tr>`;
+  }).join("");
 }
 
 function renderTopVideos(insights) {
-  const container = $("#top-videos");
-  container.innerHTML = "";
-  insights.forEach((ins) => {
-    const section = document.createElement("div");
-    section.className = "company-section";
-    const videos = (ins.top_videos || [])
-      .map(
-        (v) => `
-      <li>
-        <a href="${v.url}" target="_blank" rel="noopener">${escapeHtml(v.title)}</a>
-        <div class="video-stats">${formatNum(v.views)} views · ${v.engagement_rate}% engagement · ${formatNum(v.likes)} likes</div>
-      </li>
-    `
-      )
-      .join("");
-    section.innerHTML = `
+  $("#top-videos").innerHTML = insights.map((ins) => `
+    <div class="company-videos">
       <h4>${escapeHtml(ins.company_name)}</h4>
-      <ul class="video-list">${videos || "<li>No video data</li>"}</ul>
-    `;
-    container.appendChild(section);
-  });
+      <div class="video-cards">
+        ${(ins.top_videos || []).slice(0, 3).map((v) => `
+          <div class="video-card">
+            <img class="video-thumb" src="https://img.youtube.com/vi/${v.video_id}/mqdefault.jpg" alt="" loading="lazy" />
+            <div class="video-info">
+              <a href="${v.url}" target="_blank" rel="noopener">${escapeHtml(v.title)}</a>
+              <div class="video-meta">
+                <span class="views">${formatNum(v.views)} views</span>
+                <span class="eng">${v.engagement_rate}% eng.</span>
+                <span>${formatNum(v.likes)} likes</span>
+              </div>
+            </div>
+          </div>
+        `).join("") || "<p>No videos found</p>"}
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderTopics(insights) {
-  const grid = $("#topics-grid");
-  grid.innerHTML = "";
-  insights.forEach((ins) => {
-    const card = document.createElement("div");
-    card.className = "topic-card";
-    const tags = (ins.top_topics || [])
-      .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
-      .join("");
-    card.innerHTML = `
+  $("#topics-grid").innerHTML = insights.map((ins) => `
+    <div class="topic-card">
       <h4>${escapeHtml(ins.company_name)}</h4>
-      <div class="topic-tags">${tags || '<span class="tag">No themes detected</span>'}</div>
-    `;
-    grid.appendChild(card);
-  });
+      <div class="topic-tags">
+        ${(ins.top_topics || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")
+          || '<span class="tag">No themes detected</span>'}
+      </div>
+    </div>
+  `).join("");
 }
 
-function renderEngagementTable(insights) {
-  const tbody = $("#engagement-table tbody");
-  tbody.innerHTML = "";
-  insights.forEach((ins) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
+function renderEngagementTable(insights, primary) {
+  $("#engagement-table tbody").innerHTML = insights.map((ins) => {
+    const hl = ins.company_name === primary ? "highlight-row" : "";
+    return `<tr class="${hl}">
       <td><strong>${escapeHtml(ins.company_name)}</strong></td>
       <td>${formatNum(ins.avg_views_per_video)}</td>
       <td>${formatNum(ins.avg_likes_per_video)}</td>
       <td>${formatNum(ins.avg_comments_per_video)}</td>
-      <td>${ins.avg_engagement_rate.toFixed(2)}%</td>
+      <td><strong>${ins.avg_engagement_rate.toFixed(2)}%</strong></td>
       <td>${ins.posting_consistency_score.toFixed(0)}/100</td>
-    `;
-    tbody.appendChild(tr);
-  });
+    </tr>`;
+  }).join("");
 }
 
 function renderGaps(gaps) {
   const list = $("#gap-list");
-  list.innerHTML = "";
-  if (!gaps || gaps.length === 0) {
-    list.innerHTML = "<p>No significant gaps detected in this competitive set.</p>";
+  if (!gaps?.length) {
+    list.innerHTML = "<p style='color:var(--muted)'>No major gaps detected.</p>";
     return;
   }
-  gaps.forEach((gap) => {
-    const div = document.createElement("div");
-    div.className = "gap-item";
-    div.innerHTML = `
+  list.innerHTML = gaps.map((gap) => `
+    <div class="gap-item">
       <h4>${escapeHtml(gap.topic_or_format)}</h4>
-      <p><strong>Covered by:</strong> ${escapeHtml(gap.covered_by.join(", "))}</p>
+      <p class="covered">Covered by: ${escapeHtml(gap.covered_by.join(", "))}</p>
       <p>${escapeHtml(gap.opportunity)}</p>
-    `;
-    list.appendChild(div);
-  });
+    </div>
+  `).join("");
 }
 
 function renderRecommendations(recs) {
-  const ol = $("#recommendations-list");
-  ol.innerHTML = "";
-  recs.forEach((rec) => {
-    const li = document.createElement("li");
-    li.textContent = rec;
-    ol.appendChild(li);
-  });
+  $("#recommendations-list").innerHTML = recs.map((r) => `<li>${escapeHtml(r)}</li>`).join("");
 }
 
 async function downloadPptx() {
-  if (!currentReport) {
-    showToast("No report to download.");
-    return;
-  }
+  if (!currentReport) return showToast("No report to download.");
   try {
     const res = await fetch("/api/download", {
       method: "POST",
@@ -273,12 +289,10 @@ async function downloadPptx() {
       throw new Error(err.detail || "Download failed");
     }
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = URL.createObjectURL(blob);
     a.download = `video_intel_${currentReport.company.replace(/\s+/g, "_")}.pptx`;
     a.click();
-    URL.revokeObjectURL(url);
     showToast("PowerPoint downloaded!", true);
   } catch (err) {
     showToast(err.message || "Download failed");
@@ -292,22 +306,22 @@ function resetForm() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function showToast(msg, success = false) {
-  const toast = $("#error-toast");
-  toast.textContent = msg;
-  toast.className = success ? "toast success" : "toast";
-  toast.classList.remove("hidden");
-  setTimeout(() => toast.classList.add("hidden"), 5000);
+function showToast(msg, ok = false) {
+  const t = $("#error-toast");
+  t.textContent = msg;
+  t.className = ok ? "toast success" : "toast";
+  t.classList.remove("hidden");
+  setTimeout(() => t.classList.add("hidden"), 5000);
 }
 
 function formatNum(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return Number(n).toLocaleString();
 }
 
 function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
 }
